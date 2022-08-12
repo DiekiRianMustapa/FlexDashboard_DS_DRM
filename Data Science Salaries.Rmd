@@ -1,0 +1,137 @@
+---
+title: "Data Science Salaries"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: row
+    vertical_layout: scroll
+    theme:
+      version: 4
+      bootswatch: sketchy
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+
+options(scipen = 99) # me-non-aktifkan scientific notation
+library(tidyverse) # koleksi beberapa package R
+library(dplyr) # grammar of data manipulation
+library(readr) # membaca data
+library(ggplot2) # plot statis
+library(plotly) # plot interaktif
+library(glue) # setting tooltip
+library(scales) # mengatur skala pada plot
+
+ds <- read_csv("ds_salaries.csv")
+
+ds_sal <- ds %>% 
+  mutate(
+    work_year = as.factor(work_year),
+    experience_level = as.factor(experience_level),
+    employment_type = as.factor(employment_type),
+    remote_ratio = as.factor(remote_ratio),
+    company_location = as.factor(company_location),
+    company_size = as.factor(company_size)
+  )
+ds_sal
+```
+
+Row
+-----------------------------------------------------------------------
+
+### Top 10 Job Title (> 100,000 USD) of Data Science Salary Period 2020-2022
+
+```{r}
+ds_sal_top10 <- ds_sal %>% 
+  filter(salary_in_usd > 100000) %>% 
+  arrange(desc(salary_in_usd)) %>% 
+  select(c(job_title, salary_in_usd)) %>% 
+  head(10) %>% 
+  mutate(label = glue("Job Title: {job_title}
+                      Salary in USD: {scales::comma(salary_in_usd)} USD"))
+plot1 <- ds_sal_top10 %>% 
+  ggplot(aes(x = salary_in_usd,
+             y = reorder(job_title, salary_in_usd),
+             color = salary_in_usd,
+             text = label)) +
+  geom_point(size = 3) +
+  geom_segment(aes(x = 0,  
+                   xend = salary_in_usd,   
+                   yend = job_title), 
+               size = 1) + 
+  labs(x = 'Salary in USD',
+       y = NULL) +
+  scale_color_gradient(low = "Blue", high = "green") +
+  scale_x_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.margin = margin(r = 20))
+
+ggplotly(plot1, tooltip = "text")
+```
+
+Row
+-----------------------------------------------------------------------
+
+### Total Job Title based on Remote Ratio Capabilies (2020-2022)
+
+```{r}
+ds_remote_ratio <- ds_sal %>%
+  group_by(remote_ratio) %>%
+  summarise(count= n()) %>%
+  arrange(count) %>%
+  ungroup() %>%
+  mutate(label = glue("Remote Ratio {remote_ratio}
+                      Job Count: {scales::comma(count)} Job"))
+plot2 <- ds_remote_ratio %>% 
+  ggplot(aes(x = count,
+             y = reorder(remote_ratio, count),
+             fill = count,
+             text = label)) + 
+  geom_col() +
+  scale_fill_gradient(low = "red", high = "Yellow") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(x = 'Remote Ratio Count',
+       y = 'Remote Ratio')
+
+ggplotly(plot2, tooltip = "text")
+```
+
+### Averge Salary from 204 Job Titles with Salary Higher than 100,000 USD in US
+
+```{r}
+ds_loc <- ds_sal %>%
+  select(c(work_year, job_title, company_location, salary_in_usd, remote_ratio))
+
+ds_sal_mean <- ds_loc %>% 
+  filter(salary_in_usd > 100000, remote_ratio == 100) %>%
+  group_by(company_location) %>%
+  summarise(count= n()) %>%
+  arrange(count) %>%
+  ungroup()
+
+ds_sal_mean_usa <- ds_loc %>% 
+  filter(salary_in_usd > 100000, remote_ratio == 100, company_location == "US") %>%
+  group_by(work_year) %>%
+  summarise(mean_salary= mean(salary_in_usd)) %>%
+  arrange(mean_salary) %>%
+  ungroup() %>% 
+  mutate(label = glue("Work year: {work_year}
+                       Average Salary: {scales::comma(mean_salary)} USD"))
+
+plot3 <- ds_sal_mean_usa %>% 
+  ggplot(aes(x = work_year,
+             y = mean_salary)) +
+  geom_count(aes(col=work_year))+
+  geom_point(aes(text = label)) +
+  scale_y_continuous(labels = scales::comma) +
+labs(title = NULL,
+       x = "Work year",
+       y = "Average Salary") +
+  theme_minimal()+
+  theme(legend.position = "none",
+        plot.margin = margin(r = 20))
+
+ggplotly(plot3, tooltip = "text")
+```
+
